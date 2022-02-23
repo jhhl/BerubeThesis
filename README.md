@@ -1,2 +1,2 @@
 # BerubeThesis
-Webapp for Patricia Bérubé's thesis work on sonification of art.
+Webapp for Patricia Bérubé's thesis work on sonification of art, part of doctoral research on making visual art accessible to the visually impaired. 
