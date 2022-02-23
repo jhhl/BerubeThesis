@@ -1,0 +1,357 @@
+<meta charset="utf-8">
+<link rel="apple-touch-icon" href="research-96.png">
+<html>
+<head>
+<title>Patricia Bérubé research</title>
+<script src="JS/howler.min.js"></script>
+<script src="pictureMapData.js"></script>
+<style>
+.box
+{
+    margin:4px;
+    border: 2px solid #ccccbb;
+    padding:1em 1em 2em 1em;
+    width:95%;
+    background-color:#ffffd0;
+    margin-left:auto;
+    margin-right:auto;
+}
+.r
+{
+    -webkit-border-radius:16px;
+    -moz-border-radius:16px;
+    border-radius:16px;
+    padding : 8px 16px 8px 16px;
+    
+}
+</style>
+<script>
+
+
+// I am so jquery
+function $(n){
+return document.getElementById(n);
+}
+function gup( name )
+{
+    name = name.replace(/[\[]/,"\\\[").replace(/[\]]/,"\\\]");
+    var regexS = "[\\?&]"+name+"=([^&#]*)";
+    var regex = new RegExp( regexS );
+    var results = regex.exec( window.location.href );
+    if( results == null )
+     {
+    return "";
+     }
+    else
+    {
+    return results[1];
+    };
+}
+
+
+//
+var thisPic;
+
+var areas = [];
+var soundMap ={};
+
+function keyToUI(key)
+	{
+	t = thisPic[key];
+	if(t != undefined)
+		{
+		$('p_'+key).innerHTML = t;
+		}
+	else
+		{
+		$('p_'+key).innerHTML="";
+		}
+	}
+
+function afterLoad()
+{
+var picture = "nickel";
+var optional = gup("p");
+if(optional)
+{
+	picture = optional;
+}
+
+loadPicture(picture); 
+ 
+}
+/// updates if we go into FullScreen
+var pcW, pcH;
+
+function loadPicture(picKey)
+	{
+	 thisPic = pictureMap[picKey];
+	
+	 keyToUI('title');
+	 keyToUI('artist');
+	 keyToUI('date');
+	 keyToUI('medium');
+	 keyToUI('dimensions');
+	 keyToUI('collection');
+	 keyToUI('notes');
+	
+	//put main image into canvas.
+	var pcanvas = $("pCanvas");
+	pcW= pcanvas.width = thisPic["size"][0];
+	pcH= pcanvas.height = thisPic["size"][1];
+	
+	var context = pcanvas.getContext("2d");
+	var destX = 0;
+	var destY = 0;
+	var imageObj = new Image();
+	imageObj.onload = function() 
+		{
+			
+			// debug: dont
+	 context.drawImage(imageObj, destX, destY);
+		
+		processSVGFrom(thisPic["svgFile"]);
+		processSoundMap(thisPic["soundMap"]);
+		
+		};
+		// sync load of image file
+	imageObj.src = thisPic["imageFile"];
+		}
+		
+		
+function xmlCallback()
+	{
+	if(this.status == 200 &&
+	this.responseXML != null  ) 
+		{
+		// success!
+		let svgDoc = this.responseXML;
+		// might be fun to parse this up into shapes
+		areas.length=0;
+		// i can actually get teh svg's idea of dimensions from the svg 
+		var vbox= svgDoc.getElementsByTagName("svg")[0].getAttribute("viewBox").split(' ');
+		let svgW = parseInt(vbox[2]);
+		let svgH = parseInt(vbox[3]);
+		// parse that thing...
+		var paths = svgDoc.getElementsByTagName("path");
+		for( var pathIx=0; pathIx< paths.length;pathIx++)
+		{
+		let path = paths[pathIx];
+		var idId = path.getAttribute("id");
+		var colorId = path.getAttribute("fill");
+		// get the "d" code
+		// we can correlate the path "id" to a sound, or the path "fill" to a sound.
+		var draws = path.getAttribute("d").split(' ');
+		var nx,ny;
+		var thisPath = [];
+		// put ZO'd coordinates in the path arrays
+		for(var i =0; i<draws.length;i++)
+		{
+		// M0 751 L35 751
+		let cmd = draws[i];
+		var n;
+		if((cmd[0] == 'M') || (cmd[0] == 'L'))
+		{
+			n = parseFloat(cmd.slice(1))
+		} 
+		else
+		{
+			n = parseFloat(cmd);	
+		}
+			
+		if(i % 2 == 0)
+		{
+		nx = n/svgW;
+		}
+		else
+		{
+		ny = n/svgH;
+		thisPath.push([nx,ny]);
+		}
+		}
+		areas.push({"path":thisPath,"ID":colorId});
+		}
+		
+		// debugDraw();
+
+		} 
+		else 
+		{
+	// something went wrong
+	alert("xml was not read");
+	}
+	
+	}
+	
+	function processSVGFrom(svgFile)
+	{
+		 // get that xml
+	// let  svgDoc=loadXMLDoc(thisPic["svgFile"])
+	var client = new XMLHttpRequest();
+client.onload = xmlCallback;
+client.open("GET", svgFile);
+client.send();
+		}
+		
+		
+	function debugDraw()
+	{
+	var pcanvas = $("pCanvas")
+	
+	var ctx = pcanvas.getContext("2d");
+	ctx.strokeStyle="#CCCC88";
+	ctx.lineWidth= 2.0;
+	for(var i = 0;i<areas.length;i++)
+	{
+		let p = areas[i]["path"];
+		ctx.beginPath();
+		ctx.moveTo(p[0][0],p[0][1]);
+		for(var pt=1;pt<p.length;pt++)
+		{
+			ctx.lineTo(p[pt][0],p[pt][1]);
+		}
+		ctx.closePath();
+		ctx.stroke(); 
+	}
+	
+		}
+	
+		
+		function processSoundMap( sm)
+		{
+					//
+		soundMap.length =0;
+
+		
+		for(smID in sm)
+		{
+		// howl sounds for some reason aren't loading??
+		var howler = new Howl({ "src": [ sm[smID] ], "html5": true});
+		//howler.play();
+		soundMap[smID] = howler;
+		//
+		}
+		}
+	// the insane thing is a I think a button with a map can do this. 
+	
+function areasWithPZoPt(zox,zoy)
+	{
+	 var results = [];
+	for(var i=0;i<areas.length;i++)
+		{
+		let tarea = areas[i]["path"];
+		 if(pointInPolygon(tarea,zox,zoy))
+		 {
+		 	results.push(areas[i]["ID"]);
+		 }
+		}
+	return results;
+	}
+
+// operating ingredient
+
+const pointInPolygon = function (polygon, tx,ty) {
+    //A point is in a polygon if a line from the point to infinity crosses the polygon an odd number of times
+    let odd = false;
+    //For each edge (In this case for each point of the polygon and the previous one)
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; i++) {
+        //If a line from the point into infinity crosses this edge
+        if (((polygon[i][1] > ty) !== (polygon[j][1] > ty)) // One point needs to be above, one below our y coordinate
+            // ...and the edge doesn't cross our Y corrdinate before our x coordinate (but between our x coordinate and infinity)
+            && (tx < ((polygon[j][0] - polygon[i][0]) * (ty - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]))) {
+            // Invert odd
+            odd = !odd;
+        }
+        j = i;
+
+    }
+    //If the number of crossings was odd, the point is in the polygon
+    return odd;
+};
+
+
+
+// kind of old...
+function loadXMLDoc(filename)
+{
+if (window.XMLHttpRequest)
+  {
+  xhttp=new XMLHttpRequest();
+  }
+else // code for IE5 and IE6
+  {
+  xhttp=new ActiveXObject("Microsoft.XMLHTTP");
+  }
+xhttp.open("GET",filename,false);
+xhttp.send();
+return xhttp.responseXML;
+} 
+
+
+//--- actions
+// there could be a volume slider.
+var vol = 0.75;
+function f3(v)
+{
+	return Math.floor(v*1000.0 +0.5)/1000.0;
+}
+function clickedCanvas(evt)
+{
+	var mainEvent = evt ? evt : window.event;
+	var zox = mainEvent.offsetX/pcW;
+	var zoy = mainEvent.offsetY/pcH;
+//	$("debug").innerText = "("+f3(zox)+", "+f3(zoy)+")";
+	let results  = areasWithPZoPt(zox,zoy);
+	for(var i =0;i<results.length;i++)
+	{
+		let howler = soundMap[results[i]];
+//		howler.stop();
+//		howler.volume(vol);
+		howler.play();
+	}
+}
+ 
+ function fullScreenToggle()
+ {
+ 	let elem = $("pCanvas");
+ 	  if (elem.requestFullscreen) {
+    elem.requestFullscreen();
+  } else if (elem.webkitRequestFullscreen) { /* Safari */
+    elem.webkitRequestFullscreen();
+  } else if (elem.msRequestFullscreen) { /* IE11 */
+    elem.msRequestFullscreen();
+  }
+ }
+ 
+ function screenChanged()
+ {
+ 	// this is to convert the mouse positions.
+ 	let canv = $('pCanvas');
+ 	pcW = canv.width;
+ 	pcH = canv.height;
+ }
+ 
+</script>
+
+</head>
+<body onLoad="javascript:afterLoad();">
+<span id="debug"></span><br/>
+<canvas id="pCanvas" onClick="clickedCanvas(event)" onfullscreenchange="screenChanged(event);"></canvas>
+<br />
+<br />
+<div class="box r" style="text-align: center; font-size:2em;" onClick="javascript:fullScreenToggle();"> Full screen (ESC to escape) </div>
+</canvas>
+<br />
+<div class="box r">
+<table>
+<tr><th>Title:</th><td id="p_title"></td></tr>
+<tr><th>Artist:</th><td id="p_artist"></td></tr>
+<tr><th>Date:</th><td id="p_date"></td></tr>
+<tr><th>Medium:</th><td id="p_medium"></td></tr>
+<tr><th>Dimensions:</th><td id="p_dimensions"></td></tr>
+<tr><th>Collection:</th><td id="p_collection"></td></tr>
+<tr><th>Notes:</th><td id="p_notes"></td></tr>
+</table>
+</div>
+</body>
+</html>

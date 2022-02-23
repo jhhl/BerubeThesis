@@ -1,0 +1,87 @@
+<meta charset="utf-8">
+<link rel="apple-touch-icon" href="research-96.png">
+<html>
+<head>
+<title>Patricia Bérubé research</title>
+<script src="JS/howler.min.js"></script>
+<script src="pictureMapData.js"></script>
+<script>
+
+
+// I am so jquery
+function $(n){
+return document.getElementById(n);
+}
+var howl;
+var soundMap={};
+
+function onLoaded()
+{
+//howl =   new Howl( { "src":"sounds/mountain.mp3", "format":"audio/mp3", "usingWebAudio": false, "html5": true, "mute": false, "loop": true, "webAudio": false, "volume": 1 });
+
+ howl = new Howl({
+ 		"src": [ "sounds/mountain.mp3"  ],
+ 	  "html5":true,
+ 	   "loop": true
+ });
+ 
+ var thisPic = pictureMap["nickel"];
+ 
+ processSoundMap(thisPic["soundMap"]);
+
+}
+ function playSnd()
+ {
+ 	howl.stop();
+ 	howl.unload();
+ 	howl.load();
+	howl.play();
+ }
+  function stopSnd()
+ {
+ 	howl.stop();
+ 	howl.unload();
+ }
+ 
+ 
+ function processSoundMap( sm)
+		{
+					//
+		soundMap ={};
+
+		
+		for(smID in sm)
+		{
+		// howl sounds for some reason aren't loading??
+		var sname;
+		sname = sm[smID];
+		//sname ="sounds/sky.mp3";
+		
+		var howler = new Howl({
+			 "src": [ sname],
+			  "html5": true,
+			  "loop":true
+			  });
+		//howler.play();
+		console.log(sname,howler.state());
+		soundMap[smID] = howler;
+		//
+		}
+		
+		
+		// ?? 	 
+ // howl=soundMap["#f08080"];
+		}
+		
+</script>
+<body onLoad = "onLoaded();">
+<span style="font-size:45pt;">
+<a href="javascript:playSnd()">PLAY</a> <a href="javascript:stopSnd()">STOP</a>
+</span>
+<pre>
+<span style="font-size:45pt;">
+M
+</span>
+</pre>
+</body>
+</html>
