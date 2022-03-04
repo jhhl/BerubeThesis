@@ -1,6 +1,0 @@
-cloud
-water
-mountain
-sky
-ground
-mist
