@@ -1,5 +1,7 @@
 <meta charset="utf-8">
 <link rel="apple-touch-icon" href="research-96.png">
+<link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
+<link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
 <html>
 <head>
 <title>Accessible Paintings</title>
@@ -37,15 +39,25 @@ var thisPic;
 var areas = [];
 var soundMap ={};
 var descriptionMap = {};
+var thisSoundId = '#000000';
+var nextSoundId = '#000000';
+var isDown = false;
 
 var thisSound = null; // there's only one howler sound playing at once , as a background. descriptions too, really.
 var thisDescription= null;
 
 // so it doesn't stop playing when vol == 0 
-const QUIET = 0.0; // well, I think this is OK now to be 0.0
+const QUIET = 0.001; // well, I think this is OK now to be 0.0
+const LOUD = 0.75;
 const FADE_IN  = 500.0;
 const FADE_OUT = 1500.00
+var global_vol = LOUD; // may be adjusted with a slider
 
+// debug stuff
+ var scnX, scnY;
+ var isTouch=false;
+ 
+ 
 function keyToUI(key)
 	{
 	t = thisPic[key];
@@ -71,86 +83,16 @@ function afterLoad()
 		picture = optional;
 	}
 	
-	loadPicture(picture); 
-	
+	setupPicture(picture); 
 	installClicksAndTouches();
 }
 
-//iOS likes touches, not mouses. 
-// Similarly, listen for touchstart and touchend events on the canvas, but listen for touchcancel events on the HTML body
-function installClicksAndTouches()
-{
-	let can = $('pCanvas');
-	
-            can.addEventListener("mousedown", mouseDownCanvas, false);
-           // can.addEventListener("mousemove", mouseXY, false);
-            can.addEventListener("mouseup", mouseUpCanvas, false);
-
-             // iOS touches, boo
-          //  can.addEventListener("click", mouseDownCanvas, false);
-            can.addEventListener("dblclick",doubleClickedCanvas,false);
- // they want this on the doc body .. I could do that .. 
-          //  document.body.addEventListener("mouseup", mouseUpCanvas, false);
-            
-            // Hmmfigure out these touches!
-           // can.addEventListener("touchstart", touchDown, false);
-           // can.addEventListener("touchmove", touchXY, true);
-           // can.addEventListener("touchend", touchUp, false);
-          //  document.body.addEventListener("touchcancel", touchUp, false);
-            
-}
-
-// figure these out
-// try this!
-function debugEvent(evt,label)
-{
-	var mainEvent = evt ? evt : window.event;
-	var zox = mainEvent.offsetX/pcW;
-	var zoy = mainEvent.offsetY/pcH;
-	$("debug").innerText = label+" ("+f3(zox)+", "+f3(zoy)+")"+evt;
-}
-
-function debugTouchEvent(evt,label)
-{
-            if (!e)
-                var e = event;
-            e.preventDefault();
-            canX = (e.targetTouches[0].pageX - can.offsetLeft)/pcW;
-            canY = (e.targetTouches[0].pageY - can.offsetTop)/pcH;
-	$("debug").innerText = label+" ("+f3(canx)+", "+f3(cany)+")"+evt;
-}
-
-function mouseXY(event)
-{
-	//	debugEvent(event,"mouseXY");
-
-}
-function touchXY(e) {
-            if (!e)
-                var e = event;
-            e.preventDefault();
-            canX = e.targetTouches[0].pageX - can.offsetLeft;
-            canY = e.targetTouches[0].pageY - can.offsetTop;
-            	$("debug").innerText = "TOUCH XY:"+" ("+f3(canX)+", "+f3(canY)+")"+e;
-
-}
-
-function touchDown(event)
-{
-//	debugTouchEvent(event,"touch down");
-	mouseDownCanvas(event);
-}
-function touchUp(event)
-{
-//	debugTouchEvent(event,"touch up");
-	mouseUpCanvas(event);
-}
 
 
 /// updates if we go into FullScreen
 var pcW, pcH;
 
-function loadPicture(picKey)
+function setupPicture(picKey)
 	{
 	 thisPic = pictureMap[picKey];
 	
@@ -286,22 +228,30 @@ function debugDraw()
 }
 	
 // these are the sounds	
+
 function processSoundMap(sMapDict)
 {
-				//
-	soundMap.length = 0;
-
+//
+	soundMap = {};
+// add silence which should actually be in in the config file. 
+// always loud even though it's silen so it never goes away. heh. doesn't matter if it's mute or not. 
+	var silent = new Howl({ src: ['sounds/Shapes/0_silence.mp3'], html5: true, loop: true, volume: LOUD,mute:true});
+	soundMap['#000000'] = silent;
 	
 	for(smID in sMapDict)
 	{
-	// howl sounds for some reason aren't loading??
-		var howler = new Howl({ src: [ sMapDict[smID] ], html5: true, loop: true, volume: QUIET});
-		
-		// play em all the time, just fiddle with the volume!
-		howler.play();
-		soundMap[smID] = howler;
+	// howl sounds for some reason if loaded with vol QUIET aren't quiet at all.
+	// mute though is problematic.
+		var howler = new Howl({ src: [ sMapDict[smID] ], html5: true, loop: true, volume: QUIET,mute:true});
+ 
+			soundMap[smID] = howler;
+			// play em all the time, just fiddle with the volume!
+			soundMap[smID].play();
+			soundMap[smID].volume(QUIET); // maybe it'll believe it this time.
+			soundMap[smID].mute(false);
 	}
 }
+ 
 
 // these are the one-shot description sounds, so they DON'T play allthe time.
 function processDescriptionMap(dMapDict)
@@ -314,7 +264,7 @@ function processDescriptionMap(dMapDict)
 	{
 	// howl sounds for some reason aren't loading??
 		var howler = new Howl({ src: [ dMapDict[smID] ], html5: true, loop: false});
-	//howler.play();
+		//howler.play(); // this is only or debugging....
 		descriptionMap[smID] = howler;
 	//
 	}
@@ -377,60 +327,238 @@ return xhttp.responseXML;
 
 
 //--- actions
-// there could be a volume slider.
-var vol = 0.75;
-
+// debug function
 function f3(v)
 {
 	return Math.floor(v*1000.0 +0.5)/1000.0;
 }
 
+// raw x,y from the screen is converted to zo versions and then looked up
+// this actually lets you return overlapping areas, buuuut, we will only use the first for now. 
+//pcH and pcW in theory scale with full screening, buuut .. it's not super accurate. 
+//
+function soundIdsForXY(screenX,screenY)
+{
+	var zox = screenX/pcW;
+	var zoy = screenY/pcH;
+	// a little debug here for fullscreen
+ //	console.log("pt (",screenX,"/",pcW,",",screenY,"/",pcH,") (",f3(zox)+", "+f3(zoy)+")");
+	return areasWithPZoPt(zox,zoy);
+}
+
+// soundId is actually a color!
+// all sounds should be playing all the time, even if vol == 0 .0
+function playBgSound(newSoundId)
+{
+
+	// still paying this one? make it louder
+	 if(newSoundId == thisSoundId)
+	 {
+	 	//we may want to pump up the volume
+	 	let cvol = soundMap[thisSoundId].volume();
+	 	if(cvol<global_vol)
+	 	{
+	 		console.log("play pump:",newSoundId,cvol);
+	 		//soundMap[thisSoundId].play(); //in case it got eaten
+	 		soundMap[thisSoundId].volume(global_vol);
+	 		//soundMap[thisSoundId].fade(cvol, global_vol,FADE_IN);
+	 	}
+	 }
+	 else
+	 {
+	 	console.log("play new:",newSoundId);
+	 	// new sound to get faded in
+	 	// fade down the currrent one if it's heard at all
+	 	// well, fade down eveyone!
+	 	for (let sid in soundMap)
+	 	{	 		
+	 		let theSound  = soundMap[sid];
+	 		if(sid != newSoundId)
+			{
+				// fade is not working too well
+				if(isTouch)
+				{
+					theSound.volume(QUIET);
+					// OH SHUTUP
+					theSound.mute(true);
+				}
+				else
+				{
+					let cvol = theSound.volume();
+					if(cvol>QUIET)
+					{					
+						theSound.fade(cvol, QUIET,FADE_OUT);
+					}
+				}
+			}
+	 	}
+	 	
+		// I'm assuming the new sound is quiet .. but maybe it isn't
+		//make sure it's playing because sometimes it's not of vol == 0 
+		// might have to wait for it to be playing
+		// trouble with a redundant play is that it seeks, causing a hiccup.
+		// other trouble is taht it thinks it IS playing but in fact it isn't. 
+//		if(soundMap[newSoundId].playing())
+//		{
+//				//soundMap[newSoundId].volume(global_vol);
+//				let nvol = soundMap[newSoundId].volume();
+//				soundMap[newSoundId].fade(nvol, global_vol,FADE_IN);
+//		}
+//		else
+//		{
+			let mySound = soundMap[newSoundId];
+			mySound.once('play', 
+				function(){
+				// fade not working too well 
+				// I bet "this" will work here
+				this.mute(false);
+
+				if(isTouch)
+				{
+					this.volume(global_vol);
+				}
+				else
+				{
+					let nvol = mySound.volume();
+					this.fade(nvol, global_vol,FADE_IN);
+				}
+				}
+			);
+			mySound.play();
+//		}
+
+		
+		// swap it
+		thisSoundId = newSoundId;
+	 }
+}
+
+
+// this is for moving and touchdown.
+// touchup is equivalent to moving to area #000000
+// it's possible touchdown ALSO does a seek(0)
+function playBgSoundForScreenXY(screenX,screenY)
+{
+	if(isDown)
+	{
+		let soundIds = soundIdsForXY(screenX,screenY);
+		if(soundIds.length>0)
+		{
+			let newSoundId = soundIds[0];
+			if(isTouch)
+				{ 
+					$("debug").innerText = "TOUCH XY:"+" ("+f3(canX)+", "+f3(canY)+") "+ newSoundId;
+				};
+			playBgSound(newSoundId);
+		}
+	}
+}
+
+// moves department
+
+//iOS likes touches, not mouses. 
+// Similarly, listen for touchstart and touchend events on the canvas, but listen for touchcancel events on the HTML body
+function installClicksAndTouches()
+{
+	let can = $('pCanvas');
+	can.addEventListener("mousedown", mouseDownCanvas, false);
+	can.addEventListener("mousemove", mouseMoveCanvas, false);
+	can.addEventListener("mouseup", mouseUpCanvas, false);
+	
+	can.addEventListener("dblclick",doubleClickedCanvas,false);
+	// they want this on the doc body .. I could do that .. but maybe not.
+	document.body.addEventListener("mouseup", mouseUpCanvas, false);
+	
+	// Hmm figure out these touches!
+	can.addEventListener("touchstart", touchDown, false);
+	can.addEventListener("touchmove", touchMove, true);
+	can.addEventListener("touchend", touchUp, false);
+	document.body.addEventListener("touchcancel", touchUp, false);
+}
+
+//  
+
+// figure these out
+// try this!
+function debugEvent(evt,label)
+{
+	var mainEvent = evt ? evt : window.event;
+	var zox = mainEvent.offsetX/pcW;
+	var zoy = mainEvent.offsetY/pcH;
+	$("debug").innerText = label+" ("+f3(zox)+", "+f3(zoy)+")"+evt;
+}
+
+function debugTouchEvent(evt,label)
+{
+	if (!e)
+		var e = event;
+	canX = (e.targetTouches[0].pageX - can.offsetLeft)/pcW;
+	canY = (e.targetTouches[0].pageY - can.offsetTop)/pcH;
+	$("debug").innerText = label+" ("+f3(canx)+", "+f3(cany)+")"+evt;
+}
+
+ // touch support
+function touchMove(touchE) {
+	isTouch=true;
+	if (!touchE)
+		var touchE = event; // where is this from?
+		// for some reason, this is empty sometimes
+	let ttouches = touchE.targetTouches;
+	if (ttouches.length>0)
+	{
+		let firstTouch = ttouches[0];
+		// moves on the canvas are ignored for control purposes. 
+		// this , unfortunately, resules in no doubleclick???
+		touchE.preventDefault();
+		// this logic is for touches, ?? 
+	 	let canv = $('pCanvas');
+		canX = firstTouch.pageX - canv.offsetLeft;
+		canY = firstTouch.pageY - canv.offsetTop;
+		
+		scnX=canX; // for debug
+		scnY=canY;
+		
+		 playBgSoundForScreenXY(canX,canY);
+	}
+}
+
+function touchDown(event)
+{
+	isTouch=true;
+		console.log("touch down");
+// might be dangerous to turn on...
+//	e.preventDefault(); // turns off some scrolling features on tablets
+	isDown=true;
+ 	touchMove(event);
+}
+function touchUp(event)
+{
+		isTouch=true;
+	console.log("touch up");
+//	e.preventDefault(); // turns off some scrolling features on tablets
+	playBgSound("#000000");
+	isDown=false;
+}
 
 //now uses the single howler reference ... and all the sounds play all the time.
 // unlike my version, only one at a time.
 function mouseDownCanvas(evt)
 {
+	isTouch=false;
+	console.log("down");
+	isDown=true;
 	var mainEvent = evt ? evt : window.event;
-	var zox = mainEvent.offsetX/pcW;
-	var zoy = mainEvent.offsetY/pcH;
- 	console.log("pt (",mainEvent.offsetX,"/",pcW,",",mainEvent.offsetY,"/",pcH,") (",f3(zox)+", "+f3(zoy)+")");
-	let results  = areasWithPZoPt(zox,zoy);
-//	for(var i =0;i<results.length;i++)
-//	{
-//		thisSound = soundMap[results[i]];
-//		thisSound.fade(QUIET,vol,FADE_OUT);
-//	}
-		if(results.length>0)
-		{
-			// we only care about the first one... for now
-			// if there was one already that was different, fade it down and fase this one up.
-			// ifyou click it again while it's playing and not silent, bring itback I guess. 
-			nextSound = soundMap[results[0]];
-			console.log("dn:",nextSound._src," vol:",nextSound.volume());
-			if(thisSound != nextSound || thisSound.volume() == QUIET )
-			{
-				//  pull down this playing sound if it exists and is loud enough
-				if(thisSound!= null && thisSound.volume() > QUIET)
-				{
-					thisSound.fade(vol,QUIET,FADE_OUT);
-				}
-				thisSound = nextSound;
-				// bring it up if it's quiet.
-				var cvol = thisSound.volume();
-				if(cvol<vol)
-				{
-					
-					if(!thisSound.playing())
-					{
-						thisSound.play();
-					}
-					thisSound.seek(0); // resynch the loop.
-					thisSound.fade(cvol,vol,FADE_IN);
-				}
-			}
-		}
+	playBgSoundForScreenXY(mainEvent.offsetX,mainEvent.offsetY)
+}
+function mouseMoveCanvas(evt)
+{
+	isTouch=false;
+	var mainEvent = evt ? evt : window.event;
+	playBgSoundForScreenXY(mainEvent.offsetX,mainEvent.offsetY)
 }
 
+// doubl click just fire off one shots, so, not sophisticated. 
+// also: works on tablets. 
 function doubleClickedCanvas(evt)
 {
 	var mainEvent = evt ? evt : window.event;
@@ -440,39 +568,37 @@ function doubleClickedCanvas(evt)
 	let results  = areasWithPZoPt(zox,zoy);
 		if(thisDescription)
 		{
+			// shut it up if it's still playing
 			thisDescription.stop();
 		}
-//	for(var i =0;i<results.length;i++)
-//	{
-//
-//		thisDescription= descriptionMap[results[i]];
-//		thisDescription.volume(vol);
-//		thisDescription.play();
-//	}
 		if(results.length>0)
 		{
 			thisDescription= descriptionMap[results[0]];
-			thisDescription.volume(vol);
+			thisDescription.volume(global_vol);
 			thisDescription.play();
 		}
-	
 }
 
-// Only one sound could possibly be playing, so fade it
+// Only one sound could possibly be playing, so fade it out
 function mouseUpCanvas(evt)
 {
-		if(thisSound)
-		{
-			console.log("up:",thisSound._src," vol:",thisSound.volume());
-			var cvol = thisSound.volume();
-			thisSound.fade(cvol, QUIET,FADE_OUT);
-			// can I kill it here? not really needed.
-//			thisSound = null;
-		}
+	isTouch=false;
+	console.log("up");
+	let dSound = soundMap[thisSoundId];
+	console.log("up:",thisSoundId,dSound._src," vol:",dSound.volume());
+	playBgSound('#000000');
+	isDown=false;
+	
 }
  
+ 
+ 
+ 
+ 
+ 
+ 
 // Full screenery
-
+// this doesn't work, bleh
 function setupFullscreenCallback()
 {
 	// well this doen't work at all.
@@ -520,13 +646,7 @@ function setupFullscreenCallback()
 </head>
 <body onLoad="javascript:afterLoad();">
 <span id="debug"></span><br/>
-<!--
-<canvas id="pCanvas" onmousedown="mouseDownCanvas(event)"
-					ondblclick="doubleClickedCanvas(event)"
-					onmouseup="mouseUpCanvas(event)"
-					 onfullscreenchange="screenChanged(event);"></canvas>-->
-	<canvas id="pCanvas" 
-					 onfullscreenchange="screenChanged(event);"></canvas>				 
+<canvas id="pCanvas" onfullscreenchange="screenChanged(event);"></canvas>				 
 <br />
 <br />
 <div class="box r" style="text-align: center; font-size:2em;" onClick="javascript:fullScreenToggle();"> Full screen (ESC to escape) </div>
