@@ -6,28 +6,9 @@
 <script src="JS/howler.min.js"></script>
 <script src="pictureMapData.js"></script>
 <style>
-.box
-{
-    margin:4px;
-    border: 2px solid #ccccbb;
-    padding:1em 1em 2em 1em;
-    width:95%;
-    background-color:#ffffd0;
-    margin-left:auto;
-    margin-right:auto;
-}
-.r
-{
-    -webkit-border-radius:16px;
-    -moz-border-radius:16px;
-    border-radius:16px;
-    padding : 8px 16px 8px 16px;
-    
-}
+@import "research.css";
 </style>
 <script>
-
-
 // I am so jquery
 function $(n){
 return document.getElementById(n);
@@ -61,7 +42,9 @@ var thisSound = null; // there's only one howler sound playing at once , as a ba
 var thisDescription= null;
 
 // so it doesn't stop playing when vol == 0 
-const QUIET = 0.001;
+const QUIET = 0.0; // well, I think this is OK now to be 0.0
+const FADE_IN  = 500.0;
+const FADE_OUT = 1500.00
 
 function keyToUI(key)
 	{
@@ -78,7 +61,7 @@ function keyToUI(key)
 
 function afterLoad()
 {
-	$("debug").innerText = "INSTALLING";
+//	$("debug").innerText = "INSTALLING";
 	setupFullscreenCallback();
 	
 	var picture = "Painting1";
@@ -101,11 +84,13 @@ function installClicksAndTouches()
 	
             can.addEventListener("mousedown", mouseDownCanvas, false);
            // can.addEventListener("mousemove", mouseXY, false);
+            can.addEventListener("mouseup", mouseUpCanvas, false);
+
              // iOS touches, boo
           //  can.addEventListener("click", mouseDownCanvas, false);
             can.addEventListener("dblclick",doubleClickedCanvas,false);
  // they want this on the doc body .. I could do that .. 
-            document.body.addEventListener("mouseup", mouseUpCanvas, false);
+          //  document.body.addEventListener("mouseup", mouseUpCanvas, false);
             
             // Hmmfigure out these touches!
            // can.addEventListener("touchstart", touchDown, false);
@@ -137,7 +122,7 @@ function debugTouchEvent(evt,label)
 
 function mouseXY(event)
 {
-		debugEvent(event,"mouseXY");
+	//	debugEvent(event,"mouseXY");
 
 }
 function touchXY(e) {
@@ -152,12 +137,12 @@ function touchXY(e) {
 
 function touchDown(event)
 {
-	debugTouchEvent(event,"touch down");
+//	debugTouchEvent(event,"touch down");
 	mouseDownCanvas(event);
 }
 function touchUp(event)
 {
-	debugTouchEvent(event,"touch up");
+//	debugTouchEvent(event,"touch up");
 	mouseUpCanvas(event);
 }
 
@@ -413,7 +398,7 @@ function mouseDownCanvas(evt)
 //	for(var i =0;i<results.length;i++)
 //	{
 //		thisSound = soundMap[results[i]];
-//		thisSound.fade(QUIET,vol,2000.0);
+//		thisSound.fade(QUIET,vol,FADE_OUT);
 //	}
 		if(results.length>0)
 		{
@@ -427,18 +412,20 @@ function mouseDownCanvas(evt)
 				//  pull down this playing sound if it exists and is loud enough
 				if(thisSound!= null && thisSound.volume() > QUIET)
 				{
-					thisSound.fade(vol,QUIET,2000.0);
+					thisSound.fade(vol,QUIET,FADE_OUT);
 				}
 				thisSound = nextSound;
 				// bring it up if it's quiet.
-				if(thisSound.volume()<vol)
+				var cvol = thisSound.volume();
+				if(cvol<vol)
 				{
+					
 					if(!thisSound.playing())
 					{
 						thisSound.play();
 					}
 					thisSound.seek(0); // resynch the loop.
-					thisSound.fade(QUIET,vol,1000.0);
+					thisSound.fade(cvol,vol,FADE_IN);
 				}
 			}
 		}
@@ -476,9 +463,9 @@ function mouseUpCanvas(evt)
 {
 		if(thisSound)
 		{
-		console.log("up:",thisSound._src," vol:",thisSound.volume());
-
-			thisSound.fade(vol, QUIET,2000.0);
+			console.log("up:",thisSound._src," vol:",thisSound.volume());
+			var cvol = thisSound.volume();
+			thisSound.fade(cvol, QUIET,FADE_OUT);
 			// can I kill it here? not really needed.
 //			thisSound = null;
 		}
@@ -532,7 +519,7 @@ function setupFullscreenCallback()
 
 </head>
 <body onLoad="javascript:afterLoad();">
-[DEBUG HERE: <span id="debug"></span> :]<br/>
+<span id="debug"></span><br/>
 <!--
 <canvas id="pCanvas" onmousedown="mouseDownCanvas(event)"
 					ondblclick="doubleClickedCanvas(event)"
@@ -556,7 +543,7 @@ function setupFullscreenCallback()
 <tr><th>Notes:</th><td id="p_notes"></td></tr>
 </table>
 </div>
-<div class="box r"> Paintings:
+<div class="box r"> Paintings:<br />
 <a href="research.html?p=Painting1"> Painting 1</a> <br />
 <a href="research.html?p=Painting2"> Painting 2</a> <br />
 </div>
