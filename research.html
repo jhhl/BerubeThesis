@@ -299,7 +299,13 @@ function shutUp()
 		soundMap[ix].volume(QUIET);
 	}
 }
-
+function seek0All()
+{
+	for( ix in soundMap)
+	{
+		soundMap[ix].seek(0);
+	}
+}
 // these are the one-shot description sounds, so they DON'T play allthe time.
 function processDescriptionMap(dMapDict)
 {
@@ -656,6 +662,7 @@ function touchDown(touchE)
 // might be dangerous to turn on...
 //	e.preventDefault(); // turns off some scrolling features on tablets
 		isDown=true;
+		seek0All();
  		touchMove(touchE);
     }
 // double touch timestamp.
@@ -680,6 +687,7 @@ function mouseDownCanvas(evt)
 	isDown=true;
 	var mainEvent = evt ? evt : window.event;
 	cl("down MD XY:"+" ("+f3(mainEvent.offsetX)+", "+f3(mainEvent.offsetY)+") "+pcW+"/"+pcH);
+	seek0All();
 	playBgSoundForScreenXY(mainEvent.offsetX,mainEvent.offsetY)
 }
 
