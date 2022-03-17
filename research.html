@@ -1,37 +1,21 @@
 <meta charset="utf-8">
 <link rel="apple-touch-icon" href="research-96.png">
+<link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
+<link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
 <html>
 <head>
-<title>Patricia Bérubé research</title>
+<title>Accessible Paintings</title>
 <script src="JS/howler.min.js"></script>
 <script src="pictureMapData.js"></script>
 <style>
-.box
-{
-    margin:4px;
-    border: 2px solid #ccccbb;
-    padding:1em 1em 2em 1em;
-    width:95%;
-    background-color:#ffffd0;
-    margin-left:auto;
-    margin-right:auto;
-}
-.r
-{
-    -webkit-border-radius:16px;
-    -moz-border-radius:16px;
-    border-radius:16px;
-    padding : 8px 16px 8px 16px;
-    
-}
+@import "research.css";
 </style>
 <script>
-
-
 // I am so jquery
 function $(n){
 return document.getElementById(n);
 }
+
 function gup( name )
 {
     name = name.replace(/[\[]/,"\\\[").replace(/[\]]/,"\\\]");
@@ -51,10 +35,42 @@ function gup( name )
 
 //
 var thisPic;
+var imageObj;
 
 var areas = [];
 var soundMap ={};
+var descriptionMap = {};
+var thisSoundId = '#000000';
+var nextSoundId = '#000000';
+var isDown = false;
+var inFullScreen = false;
 
+var eventDebug = false;
+// match the screen
+var forceAspect;
+
+var thisSound = null; // there's only one howler sound playing at once , as a background. descriptions too, really.
+var thisDescription= null;
+
+// so it doesn't stop playing when vol == 0 
+const QUIET = 0.0; // well, I think this is OK now to be 0.0
+const LOUD = 0.75;
+const FADE_IN  = 1000.0;
+const FADE_OUT = 1500.00
+var global_vol = LOUD; // may be adjusted with a slider
+
+// trouble with these images is: they are too big!
+// hmm shrink  little
+const hShrink = 0.85;
+const IMAGE_HEIGHT= window.screen.height*hShrink;
+//const IMAGE_IPAD_HEIGHT= 621.0;
+var stretch= true;
+
+// debug stuff
+ var scnX, scnY;
+ var isTouch=false;
+ 
+ 
 function keyToUI(key)
 	{
 	t = thisPic[key];
@@ -70,21 +86,32 @@ function keyToUI(key)
 
 function afterLoad()
 {
-var picture = "nickel";
-var optional = gup("p");
-if(optional)
-{
-	picture = optional;
+//	$("debug").innerText = "INSTALLING";
+ 
+	// painting name is a parameter
+	var picture = "Painting1";
+	var parm_pic = gup("p");
+	if(parm_pic)
+	{
+		picture = parm_pic;
+	}
+	// stretch can be turned off as a parameter too.
+	var parm_stretch = gup("s");
+	if(parm_stretch)
+	{
+		stretch= parm+stretch == "y";
+	}
+	setupPicture(picture); 
+	installClicksAndTouches();
 }
 
-loadPicture(picture); 
- 
-}
+
+
 /// updates if we go into FullScreen
 var pcW, pcH;
 
-function loadPicture(picKey)
-	{
+function setupPicture(picKey)
+{
 	 thisPic = pictureMap[picKey];
 	
 	 keyToUI('title');
@@ -97,29 +124,51 @@ function loadPicture(picKey)
 	
 	//put main image into canvas.
 	var pcanvas = $("pCanvas");
-	pcW= pcanvas.width = thisPic["size"][0];
-	pcH= pcanvas.height = thisPic["size"][1];
+	let WAspect = thisPic["size"][0]/thisPic["size"][1];
+	wsW = window.screen.width;
+	wsH = window.screen.height*hShrink;
+	// reported as portrait, used as landscape.
+	if(wsH>wsW)
+	{
+		wsH = window.screen.width;
+		wsW = window.screen.height*hShrink;
+	}
+	forceAspect = wsW/wsH;
 	
+	$('p_aspect').innerText = "("+window.screen.width+","+window.screen.height*hShrink+") = "+forceAspect;
+	// we're going to stretch this?
+	if(stretch)
+	{
+		WAspect=forceAspect;
+	}
+
+	pcW= pcanvas.width = IMAGE_HEIGHT*WAspect;
+	pcH= pcanvas.height = IMAGE_HEIGHT;
+		
 	var context = pcanvas.getContext("2d");
-	var destX = 0;
-	var destY = 0;
-	var imageObj = new Image();
+	// center this image... ????
+	imageObj = new Image();
 	imageObj.onload = function() 
 		{
 			
-			// debug: dont
-	 context.drawImage(imageObj, destX, destY);
+		// scale the image so it fits in the on-screen sized space. 
+	 context.drawImage(imageObj, 0, 0,pcW,pcH);
 		
 		processSVGFrom(thisPic["svgFile"]);
+		
 		processSoundMap(thisPic["soundMap"]);
-		
+		// for some reason, iPads keep playing even at no voulme.
+		shutUp();
+		processDescriptionMap(thisPic["descriptionMap"])
+
 		};
-		// sync load of image file
+	// sync load of image file this may have to happen again from time to time.
 	imageObj.src = thisPic["imageFile"];
-		}
+}
 		
-		
-function xmlCallback()
+// By using SVG files, a lot of work is already done.
+//
+function parseSVGFile()
 	{
 	if(this.status == 200 &&
 	this.responseXML != null  ) 
@@ -127,8 +176,8 @@ function xmlCallback()
 		// success!
 		let svgDoc = this.responseXML;
 		// might be fun to parse this up into shapes
-		areas.length=0;
-		// i can actually get teh svg's idea of dimensions from the svg 
+		areas=[];
+		// i can actually get the svg's idea of dimensions from the svg 
 		var vbox= svgDoc.getElementsByTagName("svg")[0].getAttribute("viewBox").split(' ');
 		let svgW = parseInt(vbox[2]);
 		let svgH = parseInt(vbox[3]);
@@ -171,8 +220,8 @@ function xmlCallback()
 		}
 		areas.push({"path":thisPath,"ID":colorId});
 		}
-		
-		// debugDraw();
+		// cuz this is async
+		//debugDraw('#A08000');
 
 		} 
 		else 
@@ -181,61 +230,104 @@ function xmlCallback()
 	alert("xml was not read");
 	}
 	
-	}
-	
-	function processSVGFrom(svgFile)
-	{
-		 // get that xml
-	// let  svgDoc=loadXMLDoc(thisPic["svgFile"])
+}
+
+function processSVGFrom(svgFile)
+{
+	 // get that xml
 	var client = new XMLHttpRequest();
-client.onload = xmlCallback;
-client.open("GET", svgFile);
-client.send();
-		}
+	client.onload = parseSVGFile;
+	client.open("GET", svgFile);
+	client.send();
+}
 		
-		
-	function debugDraw()
-	{
+	
+function debugDraw(color)
+{
+	cl("ddraw :"+pcW+","+pcH);
 	var pcanvas = $("pCanvas")
 	
 	var ctx = pcanvas.getContext("2d");
-	ctx.strokeStyle="#CCCC88";
+	ctx.strokeStyle=color;
 	ctx.lineWidth= 2.0;
 	for(var i = 0;i<areas.length;i++)
 	{
 		let p = areas[i]["path"];
 		ctx.beginPath();
-		ctx.moveTo(p[0][0],p[0][1]);
+		ctx.moveTo(p[0][0]*pcW,p[0][1]*pcH);
 		for(var pt=1;pt<p.length;pt++)
 		{
-			ctx.lineTo(p[pt][0],p[pt][1]);
+			ctx.lineTo(p[pt][0]*pcW,p[pt][1]*pcH);
 		}
 		ctx.closePath();
 		ctx.stroke(); 
 	}
 	
-		}
+}
 	
-		
-		function processSoundMap( sm)
-		{
-					//
-		soundMap.length =0;
+// these are the sounds	
 
-		
-		for(smID in sm)
-		{
-		// howl sounds for some reason aren't loading??
-		var howler = new Howl({ "src": [ sm[smID] ], "html5": true});
-		//howler.play();
-		soundMap[smID] = howler;
-		//
-		}
-		}
+function processSoundMap(sMapDict)
+{
+//
+	soundMap = {};
+// add silence which should actually be in in the config file. 
+// always loud even though it's silent so it never goes away. heh. doesn't matter if it's mute or not. 
+	var silent = new Howl({ src: ['sounds/Shapes/0_silence.mp3'], html5: true, loop: true, volume: LOUD,mute:false});
+	soundMap['#000000'] = silent;
+	
+	for(smID in sMapDict)
+	{
+	// howl sounds for some reason if loaded with vol QUIET aren't quiet at all.
+	// mute though is problematic. ",mute:true"
+	//
+		var howler = new Howl({ src: [ sMapDict[smID] ], html5: true, loop: true, volume: QUIET});
+ 
+			soundMap[smID] = howler;
+			// play em all the time, just fiddle with the volume!
+			soundMap[smID].play();
+//			soundMap[smID].volume(QUIET); // maybe it'll believe it this time.
+//			soundMap[smID].mute(false);
+	}
+}
+// various ways to shut up the thing. 
+
+function shutUp()
+{
+	for( ix in soundMap)
+	{
+		soundMap[ix].volume(QUIET);
+	}
+}
+function seek0All()
+{
+	for( ix in soundMap)
+	{
+		soundMap[ix].seek(0);
+	}
+}
+// these are the one-shot description sounds, so they DON'T play allthe time.
+function processDescriptionMap(dMapDict)
+{
+				//
+	descriptionMap.length = 0;
+
+	
+	for(smID in dMapDict)
+	{
+	// howl sounds for some reason aren't loading??
+		var howler = new Howl({ src: [ dMapDict[smID] ], html5: true, loop: false});
+		//howler.play(); // this is only or debugging....
+		descriptionMap[smID] = howler;
+	//
+	}
+}
+
 	// the insane thing is a I think a button with a map can do this. 
 	
 function areasWithPZoPt(zox,zoy)
 	{
+		cl("AREA FOR:"+zox+","+zoy);
 	 var results = [];
 	for(var i=0;i<areas.length;i++)
 		{
@@ -270,77 +362,482 @@ const pointInPolygon = function (polygon, tx,ty) {
 };
 
 
-
-// kind of old...
-function loadXMLDoc(filename)
-{
-if (window.XMLHttpRequest)
-  {
-  xhttp=new XMLHttpRequest();
-  }
-else // code for IE5 and IE6
-  {
-  xhttp=new ActiveXObject("Microsoft.XMLHTTP");
-  }
-xhttp.open("GET",filename,false);
-xhttp.send();
-return xhttp.responseXML;
-} 
-
-
 //--- actions
-// there could be a volume slider.
-var vol = 0.75;
+// debug function
 function f3(v)
 {
 	return Math.floor(v*1000.0 +0.5)/1000.0;
 }
-function clickedCanvas(evt)
+
+// h/t Clive Thompson  https://javascript.plainenglish.io/its-2022-don-t-use-the-console-log-ff2c2482a997
+const cl = (arg) => {if(eventDebug) {console.log(arg);}}
+
+// hmmm.
+function mouseToZoW(scx)
+{
+return scx/pcW;
+}
+
+function mouseToZoH(scy)
+{
+	return scy/pcH;
+}
+function touchToZoW(scx)
+{
+return scx/pcW;
+}
+
+function touchToZoH(scy)
+{
+	return scy/pcH;
+}
+
+// raw x,y from the screen is converted to zo versions and then looked up
+// this actually lets you return overlapping areas, buuuut, we will only use the first for now. 
+//pcH and pcW in theory scale with full screening, buuut .. it's not super accurate. 
+//
+function soundIdsForXY(screenX,screenY)
+{
+	var zox = screenX/pcW;
+	var zoy = screenY/pcH;
+	// a little debug here for fullscreen
+ //	console.log("pt (",screenX,"/",pcW,",",screenY,"/",pcH,") (",f3(zox)+", "+f3(zoy)+")");
+	return areasWithPZoPt(zox,zoy);
+}
+
+// soundId is actually a color!
+// all sounds should be playing all the time, even if vol == 0 .0
+function playBgSound(newSoundId)
+{
+
+	// still paying this one? make it louder
+	 if(newSoundId == thisSoundId)
+	 {
+	 	// do not try to fiddle with silence.
+	 	if(thisSoundId != "#000000")
+	 	{
+		 	//we may want to pump up the volume
+		 	let cvol = soundMap[thisSoundId].volume();
+		 	if(cvol<global_vol)
+		 	{
+		 		cl("play pump:",newSoundId,cvol);
+		 		//soundMap[thisSoundId].play(); //in case it got eaten
+		 		//soundMap[thisSoundId].volume(global_vol);
+		 		soundMap[thisSoundId].fade(cvol, global_vol,FADE_IN);
+		 	}
+	 	}
+	 }
+	 else
+	 {
+	 	cl("play new:",newSoundId);
+	 	// new sound to get faded in
+	 	// fade down the currrent one if it's heard at all
+	 	// well, fade down eveyone!
+	 	for (let sid in soundMap)
+	 	{	 		
+	 		let theSound  = soundMap[sid];
+	 		if(sid != newSoundId)
+			{
+				// fade is not working too well
+				if(isTouch)
+				{
+					theSound.volume(QUIET);
+					// OH SHUTUP
+					theSound.pause();
+				}
+				else
+				{
+					let cvol = theSound.volume();
+					if(cvol>QUIET)
+					{					
+						theSound.fade(cvol, QUIET,FADE_OUT);
+						cl("fade down:",sid,theSound._src,cvol);
+						// for some reason, fade isn't working allthe time
+						theSound.pause();
+					}
+					else
+					{
+						//THIS SHOULD HAVE SHUT UP BY NOW.
+						cl("set vol to quiet:",sid,theSound._src,cvol);
+						theSound.volume(QUIET);
+					}
+				}
+			}
+	 	}
+	 	
+		// I'm assuming the new sound is quiet .. but maybe it isn't
+		//make sure it's playing because sometimes it's not of vol == 0 
+		// might have to wait for it to be playing
+		// trouble with a redundant play is that it seeks, causing a hiccup.
+		// other trouble is taht it thinks it IS playing but in fact it isn't. 
+//		if(soundMap[newSoundId].playing())
+//		{
+//				//soundMap[newSoundId].volume(global_vol);
+//				let nvol = soundMap[newSoundId].volume();
+//				soundMap[newSoundId].fade(nvol, global_vol,FADE_IN);
+//		}
+//		else
+//		{
+			let mySound = soundMap[newSoundId];
+			mySound.once('play', 
+				function(){
+				// fade not working too well 
+				// I bet "this" will work here
+				this.mute(false);
+
+				if(isTouch)
+				{
+					this.volume(global_vol);
+				}
+				else
+				{
+					let nvol = mySound.volume();
+					this.fade(nvol, global_vol,FADE_IN);
+				}
+				}
+			);
+			mySound.play();
+//		}
+
+		
+		// swap it
+		thisSoundId = newSoundId;
+	 }
+}
+
+
+// this is for moving and touchdown.
+// touchup is equivalent to moving to area #000000
+// it's possible touchdown ALSO does a seek(0)
+
+function playBgSoundForScreenXY(screenX,screenY)
+{
+	if(isDown)
+	{
+		let soundIds = soundIdsForXY(screenX,screenY);
+		if(soundIds.length>0)
+		{
+			let newSoundId = soundIds[0];
+//			if(isTouch)
+//				{ 
+//					$("debug").innerText = "TOUCH XY:"+" ("+f3(canX)+", "+f3(canY)+") "+ newSoundId;
+//				};
+			playBgSound(newSoundId);
+		}
+		else
+		{
+		//	we are probably out of range
+		cl("off picture ("+screenX+","+screenY+")");
+		playBgSound("#000000");
+		
+		}
+		
+	}
+}
+
+// moves department
+
+//iOS likes touches, not mouses. 
+// Similarly, listen for touchstart and touchend events on the canvas, but listen for touchcancel events on the HTML body
+function installClicksAndTouches()
+{
+	let can = $('pCanvas');
+	can.addEventListener("mousedown", mouseDownCanvas, false);
+	can.addEventListener("mousemove", mouseMoveCanvas, false);
+	can.addEventListener("mouseup", mouseUpCanvas, false);
+	
+	can.addEventListener("dblclick",doubleClickedCanvas,false);
+	// they want this on the doc body .. I could do that .. but maybe not.
+	document.body.addEventListener("mouseup", mouseUpCanvas, false);
+	
+	// Hmm figure out these touches!
+	// last arg is active/passive. I Thnk it can be false all t he time....
+	// {capture: true}
+	can.addEventListener("touchstart", touchDown, false);
+	can.addEventListener("touchmove", touchMove, false);
+	can.addEventListener("touchend", touchUp, false);
+	document.body.addEventListener("touchcancel", touchUp, false);
+	
+	// fullscreen??
+	document.addEventListener("fullscreenchange", screenChanged);
+	document.addEventListener("webkitfullscreenchange", screenChanged);
+	document.addEventListener("mozfullscreenchange", screenChanged);
+	document.addEventListener("MSFullscreenChange", screenChanged);
+	
+	//called when requestFullscreen(); fails. it may fail if iframe don't have allowfullscreen attribute enabled or for something else. 
+	document.addEventListener("fullscreenerror", function(){console.log("Full screen failed");});
+	document.addEventListener("webkitfullscreenerror", function(){console.log("Full screen failed");});
+	document.addEventListener("mozfullscreenerror", function(){console.log("Full screen failed");});
+	document.addEventListener("MSFullscreenError", function(){console.log("Full screen failed");});
+	
+}
+
+//  
+
+// figure these out
+// try this!
+function debugEvent(evt,label)
 {
 	var mainEvent = evt ? evt : window.event;
 	var zox = mainEvent.offsetX/pcW;
 	var zoy = mainEvent.offsetY/pcH;
-//	$("debug").innerText = "("+f3(zox)+", "+f3(zoy)+")";
-	let results  = areasWithPZoPt(zox,zoy);
-	for(var i =0;i<results.length;i++)
+	$("debug").innerText = label+" ("+f3(zox)+", "+f3(zoy)+")"+evt;
+}
+
+function debugTouchEvent(evt,label)
+{
+	if (!e)
+		var e = event;
+	canX = (e.targetTouches[0].pageX - can.offsetLeft)/pcW;
+	canY = (e.targetTouches[0].pageY - can.offsetTop)/pcH;
+	$("debug").innerText = label+" ("+f3(canx)+", "+f3(cany)+")"+evt;
+}
+
+ // touch support
+function touchMove(touchE) {
+	isTouch=true;
+	if (!touchE)
+		var touchE = event; // where is this from?
+		// for some reason, this is empty sometimes
+	let ttouches = touchE.targetTouches;
+	if (ttouches.length>0)
 	{
-		let howler = soundMap[results[i]];
-//		howler.stop();
-//		howler.volume(vol);
-		howler.play();
+		let firstTouch = ttouches[0];
+		// moves on the canvas are ignored for control purposes. 
+		// this , unfortunately, resules in no doubleclick???
+		touchE.preventDefault();
+		// this logic is for touches, ?? 
+	 	let canv = $('pCanvas');
+		canX = firstTouch.pageX - canv.offsetLeft;
+		canY = firstTouch.pageY - canv.offsetTop;
+		
+		scnX=canX; // for debug
+		scnY=canY;
+		
+		 playBgSoundForScreenXY(canX,canY);
 	}
 }
+
+
+var lastTouchDownTime=0;
+
+function touchDown(touchE)
+{
+	isTouch=true;
+	var now = new Date().getTime();
+   var timesince = now - lastTouchDownTime;
+   // these can be tweaked
+   if((timesince < 600) && (timesince > 0)){
+    // double tap   
+     cl("touch doubletap");
+
+// fire off the description
+	if (!touchE)
+		var touchE = event; // where is this from?
+		// for some reason, this is empty sometimes
+	let ttouches = touchE.targetTouches;
+	if (ttouches.length>0)
+	{
+		let firstTouch = ttouches[0];
+		// moves on the canvas are ignored for control purposes. 
+		// this , unfortunately, resules in no doubleclick???
+		touchE.preventDefault();
+		// this logic is for touches, ?? 
+	 	let canv = $('pCanvas');
+		canX = firstTouch.pageX - canv.offsetLeft;
+		canY = firstTouch.pageY - canv.offsetTop;
+		
+		scnX=canX; // for debug
+		scnY=canY;
+  		var zox = canX/pcW;
+		var zoy = canY/pcH;
+ 		doubleClickedZOXY(zox,zoy);
+	}
+	// nevertheless, it is down
+	isDown=true;
+   }
+   else
+   {
+		cl("touch down");
+// might be dangerous to turn on...
+//	e.preventDefault(); // turns off some scrolling features on tablets
+		isDown=true;
+		seek0All();
+ 		touchMove(touchE);
+    }
+// double touch timestamp.
+   lastTouchDownTime = now;
+}
+
+function touchUp(event)
+{
+	isTouch=true;
+	cl("touch up");
+//	e.preventDefault(); // turns off some scrolling features on tablets
+	playBgSound("#000000");
+	isDown=false;
+}
+
  
+//now uses the single howler reference ... and all the sounds play all the time.
+// unlike my version, only one at a time.
+function mouseDownCanvas(evt)
+{
+	isTouch=false;
+	isDown=true;
+	var mainEvent = evt ? evt : window.event;
+	cl("down MD XY:"+" ("+f3(mainEvent.offsetX)+", "+f3(mainEvent.offsetY)+") "+pcW+"/"+pcH);
+	seek0All();
+	playBgSoundForScreenXY(mainEvent.offsetX,mainEvent.offsetY)
+}
+
+function mouseMoveCanvas(evt)
+{
+	isTouch=false;
+	var mainEvent = evt ? evt : window.event;
+	// hmm  is this different from offsetX/Y?
+	let canv = $('pCanvas');
+	canX = evt.screenX - canv.offsetLeft;
+	canY = evt.screenY - canv.offsetTop;
+	
+	playBgSoundForScreenXY(mainEvent.offsetX,mainEvent.offsetY)
+}
+
+// double click just fire off one shots, so, not sophisticated. 
+// needs variant for tablet 
+function doubleClickedCanvas(evt)
+{
+	var mainEvent = evt ? evt : window.event;
+	var zox = mainEvent.offsetX/pcW;
+	var zoy = mainEvent.offsetY/pcH;
+ 	doubleClickedZOXY(zox,zoy);
+}
+
+function doubleClickedZOXY(zox,zoy)
+{
+
+//	$("debug").innerText = "("+f3(zox)+", "+f3(zoy)+")";
+	let results  = areasWithPZoPt(zox,zoy);
+		if(thisDescription)
+		{
+			// shut it up if it's still playing
+			thisDescription.stop();
+		}
+		if(results.length>0)
+		{
+			thisDescription= descriptionMap[results[0]];
+			thisDescription.volume(global_vol);
+			thisDescription.play();
+		}
+}
+
+// play silence while fading everythng else out. 
+function mouseUpCanvas(evt)
+{
+	isTouch=false;
+	let dSound = soundMap[thisSoundId];
+	cl("up:",thisSoundId,dSound._src," vol:",dSound.volume());
+	playBgSound('#000000');
+	isDown=false;
+}
+
+
+// linked to button.. so ... size calc need to be in the callback
  function fullScreenToggle()
  {
- 	let elem = $("pCanvas");
- 	  if (elem.requestFullscreen) {
-    elem.requestFullscreen();
-  } else if (elem.webkitRequestFullscreen) { /* Safari */
-    elem.webkitRequestFullscreen();
-  } else if (elem.msRequestFullscreen) { /* IE11 */
-    elem.msRequestFullscreen();
-  }
+	can = $("pCanvas");
+	if (can.requestFullscreen) {
+	    can.requestFullscreen();
+	  } else if (can.webkitRequestFullscreen) { /* Safari */
+	    can.webkitRequestFullscreen();
+	  } else if (can.msRequestFullscreen) { /* IE11 */
+	    can.msRequestFullscreen();
+	  }
  }
  
+ // now being called! yay!
  function screenChanged()
  {
  	// this is to convert the mouse positions.
- 	let canv = $('pCanvas');
- 	pcW = canv.width;
- 	pcH = canv.height;
+ 	theFSDoc = document.fullscreenElement ||
+  document.webkitFullscreenElement ||
+   document.mozFullScreenElement ||
+    document.msFullscreenElement;
+ if(theFSDoc) 
+	{
+	console.log("Current full screen element is : " + theFSDoc)
+	// can we get a real metric on the image size?????
+		console.log(" FS osize: " + theFSDoc.offsetWidth+" / "+theFSDoc.offsetHeight);
+		// this is the css size: always wrong
+		//console.log(" FS size: " + theFSDoc.width+" / "+theFSDoc.height);
+		console.log(" window avail size: " + window.screen.availWidth+" / "+window.screen.availHeight);
+
+	inFullScreen = true;
+	
+ 	//reset limits?
+		HHH=theFSDoc.offsetHeight;
+	// grr seems to be : 1200
+	//	HHH=1200;
+
+	// reset sizes
+	
+	let WAspect = thisPic["size"][0]/thisPic["size"][1];
+	// we're going to stretch this?
+	if(stretch)
+	{
+ 
+		WAspect=forceAspect;
+	}
+	// do not fiddle with the canvas size
+	// 	var pcanvas = $("pCanvas");
+	
+	pcW=  HHH*WAspect;
+	pcH=  HHH;      
+			console.log(" size we thnk it is: " + pcW+" / "+pcH);
+
+	}
+	else
+	{
+		// back to "normal"
+		console.log("No screen element?: ")
+		inFullScreen=false;
+		
+		theFSDoc = $("pCanvas");
+		console.log(" NFS size: " + theFSDoc.offsetWidth+" / "+theFSDoc.offsetHeight);
+
+		let WAspect = thisPic["size"][0]/thisPic["size"][1];
+		// we're going to stretch this?
+		if(stretch)
+		{
+			WAspect = forceAspect;
+		}
+		pcW=  IMAGE_HEIGHT*WAspect;
+		pcH=  IMAGE_HEIGHT;      
+	}
+	
+	// what the heck!!!
+//		var pcanvas = $("pCanvas")	
+//		var ctx = pcanvas.getContext("2d");
+//		 ctx.drawImage(imageObj, 0, 0,pcW,pcH);
+		// coordinates should be set by now.
+		//debugDraw("#CCCC88");
  }
  
 </script>
 
 </head>
-<body onLoad="javascript:afterLoad();">
-<span id="debug"></span><br/>
-<canvas id="pCanvas" onClick="clickedCanvas(event)" onfullscreenchange="screenChanged(event);"></canvas>
+<body id="body" onLoad="javascript:afterLoad();">
+<table>
+<tr>
+<td class="canvas-half"><canvas id="pCanvas"></canvas>				 
 <br />
 <br />
-<div class="box r" style="text-align: center; font-size:2em;" onClick="javascript:fullScreenToggle();"> Full screen (ESC to escape) </div>
-</canvas>
+<span id="debug" class="fixed"></span><br/>
+<!-- <div class="box r" style="text-align: center; font-size:2em;" onClick="javascript:fullScreenToggle();"> Full screen (ESC to escape) </div> -->
+</td>
+</tr>
+<tr>
+<td>
 <br />
 <div class="box r">
 <table>
@@ -351,7 +848,15 @@ function clickedCanvas(evt)
 <tr><th>Dimensions:</th><td id="p_dimensions"></td></tr>
 <tr><th>Collection:</th><td id="p_collection"></td></tr>
 <tr><th>Notes:</th><td id="p_notes"></td></tr>
+<tr><th>Screen Aspect:</th><td id="p_aspect"></td></tr>
 </table>
 </div>
+<div class="box r"> Paintings:<br />
+<a href="research.html?p=Painting1"> Painting 1</a> <br />
+<a href="research.html?p=Painting2"> Painting 2</a> <br />
+</div>
+</td></tr>
+</table>
+
 </body>
 </html>
