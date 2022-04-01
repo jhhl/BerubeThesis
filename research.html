@@ -61,7 +61,8 @@ var global_vol = LOUD; // may be adjusted with a slider
 
 // trouble with these images is: they are too big!
 // hmm shrink  little
-const hShrink = 0.85;
+const hShrink = 0.80;
+// not really used anymore
 const IMAGE_HEIGHT= window.screen.height*hShrink;
 //const IMAGE_IPAD_HEIGHT= 621.0;
 var stretch= true;
@@ -99,7 +100,7 @@ function afterLoad()
 	var parm_stretch = gup("s");
 	if(parm_stretch)
 	{
-		stretch= parm+stretch == "y";
+		stretch= parm_stretch == "y";
 	}
 	setupPicture(picture); 
 	installClicksAndTouches();
@@ -124,7 +125,10 @@ function setupPicture(picKey)
 	
 	//put main image into canvas.
 	var pcanvas = $("pCanvas");
-	let WAspect = thisPic["size"][0]/thisPic["size"][1];
+	// the philosophy is to make the image fit on the screen , even if it means not keeping correct aspect
+	let PAspect = thisPic["size"][0]/thisPic["size"][1];
+	// these can be bogus. 
+	// height may be flexible, but it should stretch to the whole width (with maybe a small gutter)
 	wsW = window.screen.width;
 	wsH = window.screen.height*hShrink;
 	// reported as portrait, used as landscape.
@@ -133,17 +137,19 @@ function setupPicture(picKey)
 		wsH = window.screen.width;
 		wsW = window.screen.height*hShrink;
 	}
+	
 	forceAspect = wsW/wsH;
 	
-	$('p_aspect').innerText = "("+window.screen.width+","+window.screen.height*hShrink+") = "+forceAspect;
+	$('p_aspect').innerText = "("+wsW+","+wsH+") = "+forceAspect;
 	// we're going to stretch this?
+	var WAspect = PAspect; 
 	if(stretch)
 	{
 		WAspect=forceAspect;
 	}
-
-	pcW= pcanvas.width = IMAGE_HEIGHT*WAspect;
-	pcH= pcanvas.height = IMAGE_HEIGHT;
+// if it got flipped .. well keep it landscapy? 
+	pcW= pcanvas.width = wsH*WAspect;
+	pcH= pcanvas.height = wsH;
 		
 	var context = pcanvas.getContext("2d");
 	// center this image... ????
@@ -756,6 +762,7 @@ function mouseUpCanvas(evt)
  }
  
  // now being called! yay!
+ // still pretty disgusting though. 
  function screenChanged()
  {
  	// this is to convert the mouse positions.
