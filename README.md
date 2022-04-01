@@ -5,6 +5,3 @@ impaired.
 
 Now hosted on godaddy at http://accessiblepaintings.com
 
-Now with rsync to synchronize it!
-use `sink berube`
-
